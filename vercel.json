@@ -1,6 +1,16 @@
 {
-  "framework": "vite",
-  "installCommand": "npm install --prefix web",
-  "buildCommand": "npm run build --prefix web",
-  "outputDirectory": "web/dist"
+  "version": 2,
+  "builds": [
+    {
+      "src": "web/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1.js" },
+    { "src": "/(.*)", "dest": "/web/$1" }
+  ]
 }
