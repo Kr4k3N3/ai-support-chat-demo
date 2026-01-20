@@ -1,9 +1,3 @@
-import OpenAI from 'openai';
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,7 +13,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, context } = req.body;
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'Server misconfigured: missing OPENAI_API_KEY' });
+    }
+
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const { messages, context } = body || {};
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages must be a non-empty array' });
@@ -57,13 +57,27 @@ Purpose: Show businesses how AI chat can enhance their customer experience.
       ...messages.slice(-12).map(m => ({ role: m.role, content: m.content }))
     ];
 
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o',
-      messages: chatMessages,
-      max_tokens: 500,
+    const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: chatMessages,
+        max_tokens: 500,
+      }),
     });
 
-    const reply = response.choices?.[0]?.message?.content || '';
+    if (!upstream.ok) {
+      const details = await upstream.text();
+      console.error('OpenAI Error:', upstream.status, details);
+      return res.status(500).json({ error: `OpenAI request failed (${upstream.status})` });
+    }
+
+    const response = await upstream.json();
+    const reply = response?.choices?.[0]?.message?.content || '';
     return res.status(200).json({ reply });
   } catch (err) {
     console.error('OpenAI Error:', err.message);
